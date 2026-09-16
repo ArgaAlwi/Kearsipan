@@ -10,6 +10,7 @@
 </head>
 <body class="antialiased bg-primisima text-wedel min-h-screen flex flex-col relative">
     
+    <!-- Background Dekorasi -->
     <div class="absolute top-0 left-0 w-full h-2 bg-soga"></div>
     <div class="fixed -top-24 -right-24 w-96 h-96 bg-wedel opacity-5 rounded-full blur-3xl -z-10"></div>
     <div class="fixed -bottom-24 -left-24 w-72 h-72 bg-soga opacity-10 rounded-full blur-2xl -z-10"></div>
@@ -37,13 +38,51 @@
             <h1 class="text-3xl md:text-5xl font-extrabold mb-2 tracking-tight text-wedel uppercase">PRODUK HUKUM</h1>
             <p class="text-md md:text-lg text-gray-600 mb-8 uppercase tracking-widest font-medium">Manajemen Produk Hukum</p>
 
-            <!-- KOTAK PENCARIAN -->
-            <div class="w-full max-w-2xl mx-auto mb-10">
-                <form action="{{ route('home') }}" method="GET" class="relative">
-                    <input type="text" name="keyword" value="{{ request('keyword') }}" placeholder="Cari nomor, judul, atau perihal dokumen..." class="w-full pl-6 pr-16 py-4 rounded-full border border-gray-300 focus:ring-soga focus:border-soga shadow-lg text-gray-700 font-medium text-lg outline-none">
-                    <button type="submit" class="absolute right-2 top-2 bottom-2 bg-soga text-primisima px-6 rounded-full hover:bg-wedel transition font-bold">
-                        Cari
-                    </button>
+            <!-- KOTAK PENCARIAN & FILTER -->
+            <div class="w-full max-w-4xl mx-auto mb-10 bg-white p-4 rounded-xl shadow-lg border-t-4 border-soga text-left">
+                <form action="{{ route('home') }}" method="GET">
+                    <div class="flex flex-col md:flex-row gap-3">
+                        
+                        <!-- Input Kata Kunci -->
+                        <div class="flex-grow">
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Pencarian</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                </div>
+                                <input type="text" name="keyword" value="{{ request('keyword') }}" placeholder="Nomor, judul, atau perihal..." class="w-full pl-10 pr-4 py-3 rounded-md border border-gray-300 focus:ring-soga focus:border-soga text-gray-700 outline-none transition shadow-sm">
+                            </div>
+                        </div>
+
+                        <!-- Filter Jenis -->
+                        <div class="w-full md:w-56">
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Jenis Produk</label>
+                            <select name="type" class="w-full px-4 py-3 rounded-md border border-gray-300 focus:ring-soga focus:border-soga text-gray-700 bg-white outline-none transition shadow-sm cursor-pointer">
+                                <option value="">Semua Jenis</option>
+                                @foreach($types as $type)
+                                    <option value="{{ $type->id }}" {{ request('type') == $type->id ? 'selected' : '' }}>{{ $type->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <!-- Filter Tahun -->
+                        <div class="w-full md:w-32">
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Tahun</label>
+                            <select name="year" class="w-full px-4 py-3 rounded-md border border-gray-300 focus:ring-soga focus:border-soga text-gray-700 bg-white outline-none transition shadow-sm cursor-pointer">
+                                <option value="">Semua</option>
+                                @for ($i = date('Y'); $i >= date('Y') - 20; $i--)
+                                    <option value="{{ $i }}" {{ request('year') == $i ? 'selected' : '' }}>{{ $i }}</option>
+                                @endfor
+                            </select>
+                        </div>
+
+                        <!-- Tombol Cari -->
+                        <div class="flex items-end mt-2 md:mt-0">
+                            <button type="submit" class="w-full md:w-auto h-[50px] bg-wedel text-primisima px-8 rounded-md hover:bg-soga transition font-bold shadow-md tracking-wider">
+                                CARI
+                            </button>
+                        </div>
+                    </div>
                 </form>
             </div>
 
@@ -51,10 +90,10 @@
             <div class="w-full bg-white rounded-xl shadow-lg border-t-4 border-wedel overflow-hidden mb-12 text-left">
                 <div class="p-4 bg-gray-50 border-b flex justify-between items-center">
                     <span class="text-wedel font-bold text-lg">
-                        {{ request()->filled('keyword') ? 'Hasil Pencarian: "' . request('keyword') . '"' : 'Dokumen Hukum Terbaru' }}
+                        {{ request()->anyFilled(['keyword', 'type', 'year']) ? 'Hasil Pencarian Dokumen' : 'Dokumen Hukum Terbaru' }}
                     </span>
-                    @if(request()->filled('keyword'))
-                        <a href="{{ route('home') }}" class="text-sm text-soga hover:underline">Reset</a>
+                    @if(request()->anyFilled(['keyword', 'type', 'year']))
+                        <a href="{{ route('home') }}" class="text-sm text-soga hover:underline font-semibold">Reset Filter</a>
                     @endif
                 </div>
 
@@ -73,6 +112,18 @@
                                 <tr class="border-b hover:bg-gray-50 transition">
                                     <td class="px-6 py-4">
                                         <div class="font-bold text-wedel text-base">{{ $doc->number }}</div>
+                                        
+                                        <!-- Lencana Status -->
+                                        <div class="mt-1 mb-1">
+                                            @if($doc->status === 'Berlaku')
+                                                <span class="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded border border-green-200 uppercase">BERLAKU</span>
+                                            @elseif($doc->status === 'Dicabut')
+                                                <span class="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded border border-red-200 uppercase">DICABUT</span>
+                                            @else
+                                                <span class="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] font-bold rounded border border-yellow-200 uppercase">MENGUBAH</span>
+                                            @endif
+                                        </div>
+
                                         <div class="text-gray-500 mt-1">{{ $doc->title }}</div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">{{ $doc->documentType->name ?? '-' }}</td>
@@ -100,8 +151,8 @@
                     </table>
                 </div>
                 
-                <!-- Pagination (hanya muncul jika menggunakan sistem pencarian) -->
-                @if(request()->filled('keyword') && $documents instanceof \Illuminate\Pagination\LengthAwarePaginator)
+                <!-- Pagination -->
+                @if(request()->anyFilled(['keyword', 'type', 'year']) && $documents instanceof \Illuminate\Pagination\LengthAwarePaginator)
                     <div class="p-4 border-t bg-white">
                         {{ $documents->links() }}
                     </div>

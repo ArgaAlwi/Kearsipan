@@ -2,10 +2,9 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use App\Models\Role;
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use App\Models\User;
+use App\Models\Role; // Pastikan model Role Anda bernama Role
 use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
@@ -15,17 +14,25 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Membuat Role
+        // 1. Buat 3 Role Utama
         $adminRole = Role::create(['name' => 'Admin']);
         $operatorRole = Role::create(['name' => 'Operator']);
         $pegawaiRole = Role::create(['name' => 'Pegawai']);
 
-        // 2. Membuat 1 Akun Administrator
+        // 2. Buat Akun Admin Super
         User::create([
-            'name' => 'Administrator',
-            'email' => 'admin@kearsipan.local',
-            'password' => Hash::make('password123'), // Password wajib di-hash
+            'name' => 'Administrator JDIH',
+            'email' => 'admin@kearsipan.com',
+            'password' => Hash::make('password123'), // Password default
             'role_id' => $adminRole->id,
+        ]);
+
+        // (Opsional) Buat 1 Akun Operator untuk testing
+        User::create([
+            'name' => 'Operator Instansi',
+            'email' => 'operator@kearsipan.com',
+            'password' => Hash::make('password123'),
+            'role_id' => $operatorRole->id,
         ]);
     }
 }
