@@ -10,9 +10,7 @@
                     <a href="{{ route('documents.trash') }}" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition shadow-sm font-medium flex items-center text-sm">
                         🗑️ Tong Sampah
                     </a>
-                    <a href="{{ route('documents.export') }}" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition shadow-sm font-medium flex items-center text-sm">
-                        📊 Export Excel
-                    </a>
+                    
                 @endif
                 
                 @if(Auth::user()->role?->name === 'Admin' || Auth::user()->role?->name === 'Operator')

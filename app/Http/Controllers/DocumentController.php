@@ -9,6 +9,7 @@ use App\Models\Subject;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class DocumentController extends Controller
 {
@@ -17,7 +18,6 @@ class DocumentController extends Controller
         $types = DocumentType::orderBy('name', 'asc')->get();
         $subjects = Subject::orderBy('name', 'asc')->get();
 
-        // Mengambil data dokumen beserta relasi lampirannya
         $query = Document::with(['documentType', 'subject', 'uploader', 'attachments'])->latest();
 
         $query->when($request->keyword, function ($q, $keyword) {
@@ -69,12 +69,10 @@ class DocumentController extends Controller
             'year' => 'required|integer',
             'document_date' => 'required|date',
             'status' => 'required|in:Berlaku,Dicabut,Mengubah',
-            // Validasi file menjadi array, multi-format, batas 1GB (1048576 KB)
             'document_files' => 'nullable|array',
             'document_files.*' => 'file|mimes:pdf,tif,txt,xlsx,docx,jpg,jpeg,png|max:1048576', 
         ]);
 
-        // 1. Simpan Data Dokumen Utama
         $document = Document::create([
             'document_type_id' => $request->document_type_id,
             'subject_id' => $request->subject_id,
@@ -87,12 +85,15 @@ class DocumentController extends Controller
             'uploaded_by' => Auth::id(),
         ]);
 
-        // 2. Looping (Perulangan) untuk menyimpan banyak lampiran sekaligus
         if ($request->hasFile('document_files')) {
             foreach ($request->file('document_files') as $file) {
-                // Tambahkan uniqid agar nama file tidak bentrok
                 $fileName = time() . '_' . uniqid() . '_' . $file->getClientOriginalName();
-                $filePath = $file->storeAs('documents', $fileName, 'public');
+                
+                // OTOMATIS MEMBUAT FOLDER: documents/Tahun/Nomor-Dokumen
+                $nomorAman = Str::slug($request->number);
+                $folderPath = 'documents/' . $request->year . '/' . $nomorAman;
+                
+                $filePath = $file->storeAs($folderPath, $fileName, 'lenovo_san');
 
                 $document->attachments()->create([
                     'file_name' => $fileName,
@@ -108,12 +109,11 @@ class DocumentController extends Controller
             'description' => 'Menambahkan dokumen: ' . $request->number . ' beserta lampirannya.'
         ]);
 
-        return redirect()->route('documents.index')->with('success', 'Dokumen dan seluruh lampirannya berhasil ditambahkan.');
+        return redirect()->route('documents.index')->with('success', 'Dokumen dan seluruh lampirannya berhasil ditambahkan ke Lenovo.');
     }
 
     public function show(Document $document)
     {
-        // Panggil relasi attachments agar bisa ditampilkan di halaman Detail
         $document->load(['documentType', 'subject', 'uploader', 'attachments']);
         return view('documents.show', compact('document'));
     }
@@ -153,11 +153,15 @@ class DocumentController extends Controller
             'status' => $request->status,
         ]);
 
-        // Tambahkan lampiran baru tanpa menghapus yang lama
         if ($request->hasFile('document_files')) {
             foreach ($request->file('document_files') as $file) {
                 $fileName = time() . '_' . uniqid() . '_' . $file->getClientOriginalName();
-                $filePath = $file->storeAs('documents', $fileName, 'public');
+                
+                // OTOMATIS MEMBUAT FOLDER: documents/Tahun/Nomor-Dokumen
+                $nomorAman = Str::slug($request->number);
+                $folderPath = 'documents/' . $request->year . '/' . $nomorAman;
+                
+                $filePath = $file->storeAs($folderPath, $fileName, 'lenovo_san');
 
                 $document->attachments()->create([
                     'file_name' => $fileName,
@@ -173,14 +177,14 @@ class DocumentController extends Controller
             'description' => 'Memperbarui dokumen: ' . $request->number
         ]);
 
-        return redirect()->route('documents.index')->with('success', 'Data dokumen berhasil diperbarui.');
+        return redirect()->route('documents.index')->with('success', 'Data dokumen berhasil diperbarui ke Lenovo.');
     }
 
     public function destroy(Document $document)
     {
         abort_if(Auth::user()->role?->name !== 'Admin', 403);
 
-        $document->delete(); // Soft delete
+        $document->delete(); 
         
         ActivityLog::create([
             'user_id' => Auth::id(), 'action' => 'Hapus Dokumen',
@@ -190,47 +194,58 @@ class DocumentController extends Controller
         return redirect()->route('documents.index')->with('success', 'Dokumen dipindahkan ke Tong Sampah.');
     }
 
-    // ==========================================
-    // FUNGSI PREVIEW & DOWNLOAD FILE LAMA
-    // ==========================================
     public function preview(Document $document)
     {
         if (!$document->file_path) abort(404, 'File tidak dilampirkan.');
-        $path = storage_path('app/public/' . $document->file_path);
-        if (!file_exists($path)) abort(404, 'File fisik tidak ditemukan.');
-        return response()->file($path);
+        
+        if (Storage::disk('lenovo_san')->exists($document->file_path)) {
+            return response()->file(Storage::disk('lenovo_san')->path($document->file_path));
+        } elseif (Storage::disk('public')->exists($document->file_path)) {
+            return response()->file(Storage::disk('public')->path($document->file_path));
+        }
+
+        abort(404, 'File fisik tidak ditemukan.');
     }
 
     public function download(Document $document)
     {
         if (!$document->file_path) abort(404, 'File tidak dilampirkan.');
-        $path = storage_path('app/public/' . $document->file_path);
-        if (!file_exists($path)) abort(404, 'File fisik tidak ditemukan.');
-        return response()->download($path, $document->file_name);
+        
+        if (Storage::disk('lenovo_san')->exists($document->file_path)) {
+            return response()->download(Storage::disk('lenovo_san')->path($document->file_path), $document->file_name);
+        } elseif (Storage::disk('public')->exists($document->file_path)) {
+            return response()->download(Storage::disk('public')->path($document->file_path), $document->file_name);
+        }
+
+        abort(404, 'File fisik tidak ditemukan.');
     }
-// ==========================================
-    // FUNGSI PREVIEW & DOWNLOAD LAMPIRAN BARU (MULTI-FILE)
-    // ==========================================
+
     public function previewAttachment($id)
     {
         $attachment = \App\Models\DocumentAttachment::findOrFail($id);
-        $path = storage_path('app/public/' . $attachment->file_path);
-        if (!file_exists($path)) abort(404, 'File fisik lampiran tidak ditemukan.');
         
-        // Memaksa browser menampilkan PDF/Gambar, tapi mendownload file lain (Word/Excel)
-        return response()->file($path);
+        if (Storage::disk('lenovo_san')->exists($attachment->file_path)) {
+            return response()->file(Storage::disk('lenovo_san')->path($attachment->file_path));
+        } elseif (Storage::disk('public')->exists($attachment->file_path)) {
+            return response()->file(Storage::disk('public')->path($attachment->file_path));
+        }
+        
+        abort(404, 'File fisik lampiran tidak ditemukan.');
     }
 
     public function downloadAttachment($id)
     {
         $attachment = \App\Models\DocumentAttachment::findOrFail($id);
-        $path = storage_path('app/public/' . $attachment->file_path);
-        if (!file_exists($path)) abort(404, 'File fisik lampiran tidak ditemukan.');
-        return response()->download($path, $attachment->file_name);
+        
+        if (Storage::disk('lenovo_san')->exists($attachment->file_path)) {
+            return response()->download(Storage::disk('lenovo_san')->path($attachment->file_path), $attachment->file_name);
+        } elseif (Storage::disk('public')->exists($attachment->file_path)) {
+            return response()->download(Storage::disk('public')->path($attachment->file_path), $attachment->file_name);
+        }
+
+        abort(404, 'File fisik lampiran tidak ditemukan.');
     }
-    // ==========================================
-    // FITUR ENTERPRISE (EXPORT & TONG SAMPAH)
-    // ==========================================
+
     public function exportExcel()
     {
         $documents = Document::with(['documentType', 'subject', 'uploader'])->latest()->get();
@@ -280,22 +295,26 @@ class DocumentController extends Controller
 
     public function forceDelete($id)
     {
-        // Temukan dokumen yang ada di tong sampah (termasuk relasi lampirannya)
         $document = Document::onlyTrashed()->with('attachments')->findOrFail($id);
         
-        // 1. Hapus file fisik lama (jika aplikasi masih menggunakan sistem lama)
-        if ($document->file_path && Storage::disk('public')->exists($document->file_path)) {
-            Storage::disk('public')->delete($document->file_path);
-        }
-
-        // 2. Hapus SEMUA file fisik dari tabel lampiran (sistem baru)
-        foreach($document->attachments as $attachment) {
-            if ($attachment->file_path && Storage::disk('public')->exists($attachment->file_path)) {
-                Storage::disk('public')->delete($attachment->file_path);
+        if ($document->file_path) {
+            if (Storage::disk('lenovo_san')->exists($document->file_path)) {
+                Storage::disk('lenovo_san')->delete($document->file_path);
+            } elseif (Storage::disk('public')->exists($document->file_path)) {
+                Storage::disk('public')->delete($document->file_path);
             }
         }
 
-        // 3. Basmi data dari database
+        foreach($document->attachments as $attachment) {
+            if ($attachment->file_path) {
+                if (Storage::disk('lenovo_san')->exists($attachment->file_path)) {
+                    Storage::disk('lenovo_san')->delete($attachment->file_path);
+                } elseif (Storage::disk('public')->exists($attachment->file_path)) {
+                    Storage::disk('public')->delete($attachment->file_path);
+                }
+            }
+        }
+
         $document->forceDelete();
         
         return redirect()->route('documents.trash')->with('success', 'Dokumen dan seluruh file lampirannya berhasil dibasmi permanen.');

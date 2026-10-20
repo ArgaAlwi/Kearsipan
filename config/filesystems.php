@@ -47,6 +47,14 @@ return [
             'report' => false,
         ],
 
+        // Konfigurasi khusus untuk mesin Lenovo SAN (Drive E:)
+        'lenovo_san' => [
+            'driver' => 'local',
+            'root'   => 'E:/JDIH_Storage',
+            'throw'  => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),
